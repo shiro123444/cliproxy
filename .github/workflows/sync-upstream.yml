@@ -161,6 +161,9 @@ jobs:
             npm run build
           fi
 
+          # 重命名构建产物（与上游 release.yml 保持一致）
+          mv dist/index.html dist/management.html
+
           # 读取上游 release body
           UPSTREAM_BODY=""
           if [ -f /tmp/upstream_release_body.md ]; then
@@ -190,7 +193,7 @@ jobs:
           gh release create "$RELEASE_TAG" \
             --title "$RELEASE_TAG (基于 $UPSTREAM_TAG)" \
             --notes-file /tmp/release_notes.md \
-            ./dist/index.html
+            dist/management.html
 
           echo "✅ Release $RELEASE_TAG created successfully"
         env:

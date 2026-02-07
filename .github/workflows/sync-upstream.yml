@@ -67,8 +67,9 @@ jobs:
         if: steps.upstream_release.outputs.has_release == 'true'
         run: |
           UPSTREAM_TAG="${{ steps.upstream_release.outputs.tag }}"
-          # 检查本地是否已有该 tag 的 release
-          if gh release view "$UPSTREAM_TAG" > /dev/null 2>&1; then
+          # 检查本地是否已有该 tag 的 release（通过 API 检查，而非 tag）
+          RELEASE_EXISTS=$(gh api repos/${{ github.repository }}/releases/tags/$UPSTREAM_TAG --silent 2>/dev/null && echo "true" || echo "false")
+          if [ "$RELEASE_EXISTS" == "true" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
             echo "✅ Release $UPSTREAM_TAG already exists"
           else

@@ -158,6 +158,9 @@ jobs:
             npm run build
           fi
 
+          # 删除从上游 fetch 来的本地 tag（如果存在）
+          git tag -d "$UPSTREAM_TAG" 2>/dev/null || true
+
           # 读取上游 release body
           UPSTREAM_BODY=""
           if [ -f /tmp/upstream_release_body.md ]; then

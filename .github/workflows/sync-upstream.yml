@@ -1,0 +1,239 @@
+name: Sync with Upstream
+
+on:
+  schedule:
+    # 每天 UTC 00:00 (北京时间 08:00) 检查上游更新
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/router-for-me/Cli-Proxy-API-Management-Center.git || true
+          git fetch upstream
+          git fetch upstream --tags
+
+      - name: Check for updates
+        id: check
+        run: |
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          if git merge-base --is-ancestor $UPSTREAM_SHA HEAD; then
+            echo "already_up_to_date=true" >> $GITHUB_OUTPUT
+            echo "✅ Already up to date with upstream"
+          else
+            echo "already_up_to_date=false" >> $GITHUB_OUTPUT
+            echo "📦 Updates available from upstream"
+          fi
+
+      - name: Get upstream latest release
+        id: upstream_release
+        run: |
+          # 获取上游最新 release 信息
+          RELEASE_INFO=$(curl -s https://api.github.com/repos/router-for-me/Cli-Proxy-API-Management-Center/releases/latest)
+          UPSTREAM_TAG=$(echo "$RELEASE_INFO" | jq -r '.tag_name // empty')
+          UPSTREAM_BODY=$(echo "$RELEASE_INFO" | jq -r '.body // empty')
+
+          if [ -n "$UPSTREAM_TAG" ]; then
+            echo "tag=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
+            echo "has_release=true" >> $GITHUB_OUTPUT
+            # 保存 release body 到文件（避免特殊字符问题）
+            echo "$UPSTREAM_BODY" > /tmp/upstream_release_body.md
+            echo "📦 Upstream latest release: $UPSTREAM_TAG"
+          else
+            echo "has_release=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No upstream release found"
+          fi
+
+      - name: Check if release exists locally
+        id: local_release
+        if: steps.upstream_release.outputs.has_release == 'true'
+        run: |
+          UPSTREAM_TAG="${{ steps.upstream_release.outputs.tag }}"
+          # 检查本地是否已有该 tag 的 release
+          if gh release view "$UPSTREAM_TAG" > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Release $UPSTREAM_TAG already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "📦 Release $UPSTREAM_TAG not found locally"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check existing conflict issue
+        id: check_issue
+        run: |
+          # 检查是否已有未关闭的同步冲突 Issue
+          EXISTING_ISSUE=$(gh issue list --state open --search "上游同步冲突 in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_ISSUE" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "number=$EXISTING_ISSUE" >> $GITHUB_OUTPUT
+            echo "⚠️ Existing conflict issue #$EXISTING_ISSUE found"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ No existing conflict issue"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        if: steps.check.outputs.already_up_to_date == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Merge upstream
+        if: steps.check.outputs.already_up_to_date == 'false'
+        id: merge
+        run: |
+          if git merge upstream/main --no-edit -m "Merge upstream changes $(date +%Y-%m-%d)"; then
+            echo "merge_success=true" >> $GITHUB_OUTPUT
+            echo "✅ Merge successful"
+          else
+            echo "merge_success=false" >> $GITHUB_OUTPUT
+            # 保存冲突文件列表
+            git diff --name-only --diff-filter=U > /tmp/conflict_files.txt
+            git merge --abort
+            echo "⚠️ Merge conflict detected"
+          fi
+
+      - name: Build and package
+        if: steps.check.outputs.already_up_to_date == 'false' && steps.merge.outputs.merge_success == 'true'
+        id: build
+        run: |
+          npm ci
+          if npm run build; then
+            echo "build_success=true" >> $GITHUB_OUTPUT
+            echo "✅ Build successful"
+          else
+            echo "build_success=false" >> $GITHUB_OUTPUT
+            echo "❌ Build failed"
+          fi
+
+      - name: Push to main (merge and build success)
+        if: steps.merge.outputs.merge_success == 'true' && steps.build.outputs.build_success == 'true'
+        run: |
+          git push origin main
+          echo "✅ Successfully synced with upstream"
+
+      - name: Close existing conflict issue (if resolved)
+        if: steps.merge.outputs.merge_success == 'true' && steps.build.outputs.build_success == 'true' && steps.check_issue.outputs.exists == 'true'
+        run: |
+          gh issue close ${{ steps.check_issue.outputs.number }} --comment "✅ 冲突已自动解决，上游同步成功！"
+          echo "✅ Closed existing conflict issue #${{ steps.check_issue.outputs.number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        if: |
+          steps.upstream_release.outputs.has_release == 'true' &&
+          steps.local_release.outputs.exists == 'false' &&
+          (steps.build.outputs.build_success == 'true' || steps.check.outputs.already_up_to_date == 'true')
+        run: |
+          UPSTREAM_TAG="${{ steps.upstream_release.outputs.tag }}"
+
+          # 如果代码已是最新但没有 release，需要先构建
+          if [ "${{ steps.check.outputs.already_up_to_date }}" == "true" ]; then
+            npm ci
+            npm run build
+          fi
+
+          # 读取上游 release body
+          UPSTREAM_BODY=""
+          if [ -f /tmp/upstream_release_body.md ]; then
+            UPSTREAM_BODY=$(cat /tmp/upstream_release_body.md)
+          fi
+
+          # 构建 release notes
+          RELEASE_BODY="## 🔄 同步上游 $UPSTREAM_TAG
+
+此版本同步自上游仓库 [router-for-me/Cli-Proxy-API-Management-Center](https://github.com/router-for-me/Cli-Proxy-API-Management-Center)
+
+### ✨ Fork 增强功能
+- Kiro (AWS CodeWhisperer) 配额显示
+- GitHub Copilot 配额显示
+
+---
+
+### 📋 上游更新日志
+
+$UPSTREAM_BODY"
+
+          # 创建 release 并上传构建产物
+          gh release create "$UPSTREAM_TAG" \
+            --title "$UPSTREAM_TAG" \
+            --notes "$RELEASE_BODY" \
+            ./dist/index.html
+
+          echo "✅ Release $UPSTREAM_TAG created successfully"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Issue (merge conflict)
+        if: steps.merge.outputs.merge_success == 'false' && steps.check_issue.outputs.exists == 'false'
+        run: |
+          # 读取冲突文件列表
+          CONFLICT_LIST=""
+          if [ -f /tmp/conflict_files.txt ]; then
+            while IFS= read -r file; do
+              [ -n "$file" ] && CONFLICT_LIST="$CONFLICT_LIST
+- \`$file\`"
+            done < /tmp/conflict_files.txt
+          fi
+
+          gh issue create \
+            --title "⚠️ 上游同步冲突" \
+            --label "sync-conflict" \
+            --body "## 自动同步上游时发现合并冲突
+
+### 🔴 冲突文件
+$CONFLICT_LIST
+
+### 🛠️ 解决方法
+
+请参考 [docs/merge.md](../blob/main/docs/merge.md)
+
+### 上游仓库
+https://github.com/router-for-me/Cli-Proxy-API-Management-Center"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Issue (build failed)
+        if: steps.merge.outputs.merge_success == 'true' && steps.build.outputs.build_success == 'false'
+        run: |
+          git reset --hard HEAD~1
+
+          gh issue create \
+            --title "❌ 上游同步构建失败" \
+            --label "build-failed" \
+            --body "## 自动同步上游后构建失败
+
+合并成功但构建失败，已自动回滚。
+
+### 🛠️ 解决方法
+
+请参考 [docs/merge.md](../blob/main/docs/merge.md)
+
+### 上游仓库
+https://github.com/router-for-me/Cli-Proxy-API-Management-Center"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

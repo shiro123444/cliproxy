@@ -18,6 +18,11 @@ import type {
   GeminiCliParsedBucket,
   GeminiCliQuotaBucketState,
   GeminiCliQuotaState,
+  KiroQuotaState,
+  KiroBaseQuota,
+  KiroFreeTrialQuota,
+  CopilotQuotaState,
+  CopilotQuotaItem,
 } from '@/types';
 import { apiCallApi, authFilesApi, getApiCallErrorMessage } from '@/services/api';
 import {
@@ -27,6 +32,11 @@ import {
   CODEX_REQUEST_HEADERS,
   GEMINI_CLI_QUOTA_URL,
   GEMINI_CLI_REQUEST_HEADERS,
+  KIRO_QUOTA_URL,
+  KIRO_REQUEST_HEADERS,
+  KIRO_REQUEST_BODY,
+  COPILOT_QUOTA_URL,
+  COPILOT_REQUEST_HEADERS,
   normalizeAuthIndexValue,
   normalizeGeminiCliModelId,
   normalizeNumberValue,
@@ -36,6 +46,9 @@ import {
   parseAntigravityPayload,
   parseCodexUsagePayload,
   parseGeminiCliQuotaPayload,
+  parseKiroQuotaPayload,
+  parseKiroErrorPayload,
+  parseCopilotQuotaPayload,
   resolveCodexChatgptAccountId,
   resolveCodexPlanType,
   resolveGeminiCliProjectId,
@@ -47,8 +60,10 @@ import {
   getStatusFromError,
   isAntigravityFile,
   isCodexFile,
+  isCopilotFile,
   isDisabledAuthFile,
   isGeminiCliFile,
+  isKiroFile,
   isRuntimeOnlyAuthFile,
 } from '@/utils/quota';
 import type { QuotaRenderHelpers } from './QuotaCard';
@@ -56,7 +71,7 @@ import styles from '@/pages/QuotaPage.module.scss';
 
 type QuotaUpdater<T> = T | ((prev: T) => T);
 
-type QuotaType = 'antigravity' | 'codex' | 'gemini-cli';
+type QuotaType = 'antigravity' | 'codex' | 'gemini-cli' | 'kiro' | 'copilot';
 
 const DEFAULT_ANTIGRAVITY_PROJECT_ID = 'bamboo-precept-lgxtn';
 
@@ -64,9 +79,13 @@ export interface QuotaStore {
   antigravityQuota: Record<string, AntigravityQuotaState>;
   codexQuota: Record<string, CodexQuotaState>;
   geminiCliQuota: Record<string, GeminiCliQuotaState>;
+  kiroQuota: Record<string, KiroQuotaState>;
+  copilotQuota: Record<string, CopilotQuotaState>;
   setAntigravityQuota: (updater: QuotaUpdater<Record<string, AntigravityQuotaState>>) => void;
   setCodexQuota: (updater: QuotaUpdater<Record<string, CodexQuotaState>>) => void;
   setGeminiCliQuota: (updater: QuotaUpdater<Record<string, GeminiCliQuotaState>>) => void;
+  setKiroQuota: (updater: QuotaUpdater<Record<string, KiroQuotaState>>) => void;
+  setCopilotQuota: (updater: QuotaUpdater<Record<string, CopilotQuotaState>>) => void;
   clearQuotaCache: () => void;
 }
 
@@ -630,4 +649,455 @@ export const GEMINI_CLI_CONFIG: QuotaConfig<GeminiCliQuotaState, GeminiCliQuotaB
   controlClassName: styles.geminiCliControl,
   gridClassName: styles.geminiCliGrid,
   renderQuotaItems: renderGeminiCliItems,
+};
+
+// Kiro (AWS CodeWhisperer) quota functions
+
+interface KiroQuotaData {
+  subscriptionTitle: string | null;
+  baseQuota: KiroBaseQuota | null;
+  freeTrialQuota: KiroFreeTrialQuota | null;
+}
+
+const formatKiroResetTime = (timestamp: number | undefined): string => {
+  if (!timestamp) return '-';
+  const date = new Date(timestamp * 1000);
+  if (isNaN(date.getTime())) return '-';
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${month}/${day} ${hours}:${minutes}`;
+};
+
+const fetchKiroQuota = async (
+  file: AuthFileItem,
+  t: TFunction
+): Promise<KiroQuotaData> => {
+  const rawAuthIndex = file['auth_index'] ?? file.authIndex;
+  const authIndex = normalizeAuthIndexValue(rawAuthIndex);
+  if (!authIndex) {
+    throw new Error(t('kiro_quota.missing_auth_index'));
+  }
+
+  const result = await apiCallApi.request({
+    authIndex,
+    method: 'POST',
+    url: KIRO_QUOTA_URL,
+    header: { ...KIRO_REQUEST_HEADERS },
+    data: KIRO_REQUEST_BODY,
+  });
+
+  if (result.statusCode < 200 || result.statusCode >= 300) {
+    // Try to parse error response for specific error messages
+    const errorPayload = parseKiroErrorPayload(result.body ?? result.bodyText);
+    if (errorPayload?.reason === 'TEMPORARILY_SUSPENDED') {
+      throw createStatusError(t('kiro_quota.suspended'), result.statusCode);
+    }
+    throw createStatusError(getApiCallErrorMessage(result), result.statusCode);
+  }
+
+  const payload = parseKiroQuotaPayload(result.body ?? result.bodyText);
+  if (!payload) {
+    throw new Error(t('kiro_quota.empty'));
+  }
+
+  const subscriptionTitle = normalizeStringValue(payload.subscriptionInfo?.subscriptionTitle);
+  const usageBreakdown = payload.usageBreakdownList?.[0];
+
+  let baseQuota: KiroBaseQuota | null = null;
+  let freeTrialQuota: KiroFreeTrialQuota | null = null;
+
+  if (usageBreakdown) {
+    const limit = normalizeNumberValue(usageBreakdown.usageLimitWithPrecision);
+    const used = normalizeNumberValue(usageBreakdown.currentUsageWithPrecision);
+    const resetTime = normalizeNumberValue(usageBreakdown.nextDateReset ?? payload.nextDateReset);
+
+    if (limit !== null && used !== null && resetTime !== null) {
+      baseQuota = { used, limit, resetTime };
+    }
+
+    const freeTrialInfo = usageBreakdown.freeTrialInfo;
+    if (freeTrialInfo) {
+      const trialLimit = normalizeNumberValue(freeTrialInfo.usageLimitWithPrecision);
+      const trialUsed = normalizeNumberValue(freeTrialInfo.currentUsageWithPrecision);
+      const trialExpiry = normalizeNumberValue(freeTrialInfo.freeTrialExpiry);
+      const trialStatus = normalizeStringValue(freeTrialInfo.freeTrialStatus);
+
+      if (trialLimit !== null && trialUsed !== null && trialExpiry !== null && trialStatus) {
+        freeTrialQuota = {
+          used: trialUsed,
+          limit: trialLimit,
+          expiry: trialExpiry,
+          status: trialStatus,
+        };
+      }
+    }
+  }
+
+  return { subscriptionTitle, baseQuota, freeTrialQuota };
+};
+
+const renderKiroItems = (
+  quota: KiroQuotaState,
+  t: TFunction,
+  helpers: QuotaRenderHelpers
+): ReactNode => {
+  const { styles: styleMap, QuotaProgressBar } = helpers;
+  const { createElement: h, Fragment } = React;
+
+  const nodes: ReactNode[] = [];
+
+  // Subscription title
+  if (quota.subscriptionTitle) {
+    nodes.push(
+      h(
+        'div',
+        { key: 'subscription', className: styleMap.codexPlan },
+        h('span', { className: styleMap.codexPlanLabel }, t('kiro_quota.subscription_label')),
+        h('span', { className: styleMap.codexPlanValue }, quota.subscriptionTitle)
+      )
+    );
+  }
+
+  // Base quota
+  if (quota.baseQuota) {
+    const { used, limit, resetTime } = quota.baseQuota;
+    const remaining = Math.max(0, limit - used);
+    const percent = limit > 0 ? Math.round((remaining / limit) * 100) : 0;
+    const resetLabel = formatKiroResetTime(resetTime);
+
+    nodes.push(
+      h(
+        'div',
+        { key: 'base', className: styleMap.quotaRow },
+        h(
+          'div',
+          { className: styleMap.quotaRowHeader },
+          h('span', { className: styleMap.quotaModel }, t('kiro_quota.base_quota')),
+          h(
+            'div',
+            { className: styleMap.quotaMeta },
+            h('span', { className: styleMap.quotaPercent }, `${percent}%`),
+            h('span', { className: styleMap.quotaAmount }, `${remaining.toFixed(1)}/${limit}`),
+            h('span', { className: styleMap.quotaReset }, resetLabel)
+          )
+        ),
+        h(QuotaProgressBar, { percent, highThreshold: 60, mediumThreshold: 20 })
+      )
+    );
+  }
+
+  // Free trial quota
+  if (quota.freeTrialQuota) {
+    const { used, limit, expiry, status } = quota.freeTrialQuota;
+    const remaining = Math.max(0, limit - used);
+    const percent = limit > 0 ? Math.round((remaining / limit) * 100) : 0;
+    const isActive = status.toUpperCase() === 'ACTIVE';
+    const statusLabel = isActive ? t('kiro_quota.trial_active') : t('kiro_quota.trial_expired');
+    const expiryLabel = formatKiroResetTime(expiry);
+
+    nodes.push(
+      h(
+        'div',
+        { key: 'trial', className: styleMap.quotaRow },
+        h(
+          'div',
+          { className: styleMap.quotaRowHeader },
+          h(
+            'span',
+            { className: styleMap.quotaModel },
+            `${t('kiro_quota.free_trial')} (${statusLabel})`
+          ),
+          h(
+            'div',
+            { className: styleMap.quotaMeta },
+            h('span', { className: styleMap.quotaPercent }, `${percent}%`),
+            h('span', { className: styleMap.quotaAmount }, `${remaining.toFixed(1)}/${limit}`),
+            h('span', { className: styleMap.quotaReset }, expiryLabel)
+          )
+        ),
+        h(QuotaProgressBar, { percent, highThreshold: 60, mediumThreshold: 20 })
+      )
+    );
+  }
+
+  if (nodes.length === 0) {
+    return h('div', { className: styleMap.quotaMessage }, t('kiro_quota.empty'));
+  }
+
+  return h(Fragment, null, ...nodes);
+};
+
+export const KIRO_CONFIG: QuotaConfig<KiroQuotaState, KiroQuotaData> = {
+  type: 'kiro',
+  i18nPrefix: 'kiro_quota',
+  filterFn: (file) => isKiroFile(file) && !isDisabledAuthFile(file),
+  fetchQuota: fetchKiroQuota,
+  storeSelector: (state) => state.kiroQuota,
+  storeSetter: 'setKiroQuota',
+  buildLoadingState: () => ({
+    status: 'loading',
+    subscriptionTitle: null,
+    baseQuota: null,
+    freeTrialQuota: null,
+  }),
+  buildSuccessState: (data) => ({
+    status: 'success',
+    subscriptionTitle: data.subscriptionTitle,
+    baseQuota: data.baseQuota,
+    freeTrialQuota: data.freeTrialQuota,
+  }),
+  buildErrorState: (message, status) => ({
+    status: 'error',
+    subscriptionTitle: null,
+    baseQuota: null,
+    freeTrialQuota: null,
+    error: message,
+    errorStatus: status,
+  }),
+  cardClassName: styles.kiroCard,
+  controlsClassName: styles.kiroControls,
+  controlClassName: styles.kiroControl,
+  gridClassName: styles.kiroGrid,
+  renderQuotaItems: renderKiroItems,
+};
+
+// Copilot (GitHub Copilot) quota functions
+
+interface CopilotQuotaData {
+  plan: string | null;
+  items: CopilotQuotaItem[];
+  resetDate: string | null;
+}
+
+const formatCopilotResetDate = (dateStr: string | undefined): string => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${month}/${day}`;
+  } catch {
+    return '-';
+  }
+};
+
+const resolveCopilotPlanLabel = (
+  plan: string | undefined,
+  sku: string | undefined,
+  t: TFunction
+): string | null => {
+  if (!plan && !sku) return null;
+  const lowerPlan = plan?.toLowerCase();
+  const lowerSku = sku?.toLowerCase();
+
+  if (lowerSku?.includes('free')) return t('copilot_quota.plan_free');
+  if (lowerSku?.includes('individual')) return t('copilot_quota.plan_pro');
+  if (lowerPlan === 'business' || lowerSku?.includes('business')) return t('copilot_quota.plan_business');
+  if (lowerPlan === 'enterprise' || lowerSku?.includes('enterprise')) return t('copilot_quota.plan_enterprise');
+  if (lowerPlan === 'individual') return t('copilot_quota.plan_pro');
+
+  return plan || sku || null;
+};
+
+const fetchCopilotQuota = async (
+  file: AuthFileItem,
+  t: TFunction
+): Promise<CopilotQuotaData> => {
+  const rawAuthIndex = file['auth_index'] ?? file.authIndex;
+  const authIndex = normalizeAuthIndexValue(rawAuthIndex);
+  if (!authIndex) {
+    throw new Error(t('copilot_quota.missing_auth_index'));
+  }
+
+  const result = await apiCallApi.request({
+    authIndex,
+    method: 'GET',
+    url: COPILOT_QUOTA_URL,
+    header: { ...COPILOT_REQUEST_HEADERS },
+  });
+
+  if (result.statusCode < 200 || result.statusCode >= 300) {
+    throw createStatusError(getApiCallErrorMessage(result), result.statusCode);
+  }
+
+  const payload = parseCopilotQuotaPayload(result.body ?? result.bodyText);
+  if (!payload) {
+    throw new Error(t('copilot_quota.empty'));
+  }
+
+  const plan = resolveCopilotPlanLabel(payload.copilot_plan, payload.access_type_sku, t);
+  const items: CopilotQuotaItem[] = [];
+  let resetDate: string | null = null;
+
+  // Check if it's Free/Pro format (limited_user_quotas)
+  if (payload.limited_user_quotas && payload.monthly_quotas) {
+    resetDate = payload.limited_user_reset_date || null;
+
+    const chatRemaining = normalizeNumberValue(payload.limited_user_quotas.chat) ?? 0;
+    const chatTotal = normalizeNumberValue(payload.monthly_quotas.chat) ?? 0;
+    if (chatTotal > 0) {
+      const chatUsed = chatTotal - chatRemaining;
+      items.push({
+        id: 'chat',
+        label: t('copilot_quota.chat'),
+        used: chatUsed,
+        limit: chatTotal,
+        percent: Math.round((chatRemaining / chatTotal) * 100),
+        unlimited: false,
+      });
+    }
+
+    const completionsRemaining = normalizeNumberValue(payload.limited_user_quotas.completions) ?? 0;
+    const completionsTotal = normalizeNumberValue(payload.monthly_quotas.completions) ?? 0;
+    if (completionsTotal > 0) {
+      const completionsUsed = completionsTotal - completionsRemaining;
+      items.push({
+        id: 'completions',
+        label: t('copilot_quota.completions'),
+        used: completionsUsed,
+        limit: completionsTotal,
+        percent: Math.round((completionsRemaining / completionsTotal) * 100),
+        unlimited: false,
+      });
+    }
+  }
+  // Check if it's Business/Enterprise format (quota_snapshots)
+  else if (payload.quota_snapshots) {
+    resetDate = payload.quota_reset_date || null;
+
+    const snapshotKeys: Array<{ key: keyof typeof payload.quota_snapshots; labelKey: string }> = [
+      { key: 'chat', labelKey: 'copilot_quota.chat' },
+      { key: 'completions', labelKey: 'copilot_quota.completions' },
+      { key: 'premium_interactions', labelKey: 'copilot_quota.premium_interactions' },
+    ];
+
+    for (const { key, labelKey } of snapshotKeys) {
+      const snapshot = payload.quota_snapshots[key];
+      if (!snapshot) continue;
+
+      const unlimited = snapshot.unlimited === true;
+      const entitlement = normalizeNumberValue(snapshot.entitlement) ?? 0;
+      const remaining = normalizeNumberValue(snapshot.remaining) ?? 0;
+      const percentRemaining = normalizeNumberValue(snapshot.percent_remaining) ?? 0;
+
+      // Skip if unlimited and no meaningful data
+      if (unlimited && entitlement === 0 && remaining === 0) continue;
+
+      items.push({
+        id: key,
+        label: t(labelKey),
+        used: entitlement - remaining,
+        limit: entitlement,
+        percent: unlimited ? 100 : Math.round(percentRemaining),
+        unlimited,
+      });
+    }
+  }
+
+  return { plan, items, resetDate };
+};
+
+const renderCopilotItems = (
+  quota: CopilotQuotaState,
+  t: TFunction,
+  helpers: QuotaRenderHelpers
+): ReactNode => {
+  const { styles: styleMap, QuotaProgressBar } = helpers;
+  const { createElement: h, Fragment } = React;
+
+  const nodes: ReactNode[] = [];
+
+  // Plan label
+  if (quota.plan) {
+    nodes.push(
+      h(
+        'div',
+        { key: 'plan', className: styleMap.codexPlan },
+        h('span', { className: styleMap.codexPlanLabel }, t('copilot_quota.plan_label')),
+        h('span', { className: styleMap.codexPlanValue }, quota.plan)
+      )
+    );
+  }
+
+  // Quota items
+  if (quota.items.length === 0) {
+    nodes.push(
+      h('div', { key: 'empty', className: styleMap.quotaMessage }, t('copilot_quota.empty'))
+    );
+    return h(Fragment, null, ...nodes);
+  }
+
+  const resetLabel = formatCopilotResetDate(quota.resetDate ?? undefined);
+
+  for (const item of quota.items) {
+    const percentLabel = item.unlimited
+      ? t('copilot_quota.unlimited')
+      : `${item.percent}%`;
+    const amountLabel = item.unlimited
+      ? ''
+      : `${item.limit - item.used}/${item.limit}`;
+
+    nodes.push(
+      h(
+        'div',
+        { key: item.id, className: styleMap.quotaRow },
+        h(
+          'div',
+          { className: styleMap.quotaRowHeader },
+          h('span', { className: styleMap.quotaModel }, item.label),
+          h(
+            'div',
+            { className: styleMap.quotaMeta },
+            h('span', { className: styleMap.quotaPercent }, percentLabel),
+            amountLabel ? h('span', { className: styleMap.quotaAmount }, amountLabel) : null,
+            h('span', { className: styleMap.quotaReset }, resetLabel)
+          )
+        ),
+        h(QuotaProgressBar, {
+          percent: item.unlimited ? 100 : item.percent,
+          highThreshold: 60,
+          mediumThreshold: 20,
+        })
+      )
+    );
+  }
+
+  return h(Fragment, null, ...nodes);
+};
+
+export const COPILOT_CONFIG: QuotaConfig<CopilotQuotaState, CopilotQuotaData> = {
+  type: 'copilot',
+  i18nPrefix: 'copilot_quota',
+  filterFn: (file) => isCopilotFile(file) && !isDisabledAuthFile(file),
+  fetchQuota: fetchCopilotQuota,
+  storeSelector: (state) => state.copilotQuota,
+  storeSetter: 'setCopilotQuota',
+  buildLoadingState: () => ({
+    status: 'loading',
+    plan: null,
+    items: [],
+    resetDate: null,
+  }),
+  buildSuccessState: (data) => ({
+    status: 'success',
+    plan: data.plan,
+    items: data.items,
+    resetDate: data.resetDate,
+  }),
+  buildErrorState: (message, status) => ({
+    status: 'error',
+    plan: null,
+    items: [],
+    resetDate: null,
+    error: message,
+    errorStatus: status,
+  }),
+  cardClassName: styles.copilotCard,
+  controlsClassName: styles.copilotControls,
+  controlClassName: styles.copilotControl,
+  gridClassName: styles.copilotGrid,
+  renderQuotaItems: renderCopilotItems,
 };

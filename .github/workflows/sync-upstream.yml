@@ -67,14 +67,15 @@ jobs:
         if: steps.upstream_release.outputs.has_release == 'true'
         run: |
           UPSTREAM_TAG="${{ steps.upstream_release.outputs.tag }}"
-          # 检查本地是否已有该 tag 的 release（通过 API 检查，而非 tag）
-          RELEASE_EXISTS=$(gh api repos/${{ github.repository }}/releases/tags/$UPSTREAM_TAG --silent 2>/dev/null && echo "true" || echo "false")
+          RELEASE_TAG="${UPSTREAM_TAG}-plus"
+          # 检查本地是否已有该 tag 的 release（通过 API 检查）
+          RELEASE_EXISTS=$(gh api repos/${{ github.repository }}/releases/tags/$RELEASE_TAG --silent 2>/dev/null && echo "true" || echo "false")
           if [ "$RELEASE_EXISTS" == "true" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "✅ Release $UPSTREAM_TAG already exists"
+            echo "✅ Release $RELEASE_TAG already exists"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "📦 Release $UPSTREAM_TAG not found locally"
+            echo "📦 Release $RELEASE_TAG not found locally"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -151,15 +152,14 @@ jobs:
           (steps.build.outputs.build_success == 'true' || steps.check.outputs.already_up_to_date == 'true')
         run: |
           UPSTREAM_TAG="${{ steps.upstream_release.outputs.tag }}"
+          # 使用 -plus 后缀区分 Fork 版本
+          RELEASE_TAG="${UPSTREAM_TAG}-plus"
 
           # 如果代码已是最新但没有 release，需要先构建
           if [ "${{ steps.check.outputs.already_up_to_date }}" == "true" ]; then
             npm ci
             npm run build
           fi
-
-          # 删除从上游 fetch 来的本地 tag（如果存在）
-          git tag -d "$UPSTREAM_TAG" 2>/dev/null || true
 
           # 读取上游 release body
           UPSTREAM_BODY=""
@@ -187,12 +187,12 @@ jobs:
           echo "$UPSTREAM_BODY" >> /tmp/release_notes.md
 
           # 创建 release 并上传构建产物
-          gh release create "$UPSTREAM_TAG" \
-            --title "$UPSTREAM_TAG" \
+          gh release create "$RELEASE_TAG" \
+            --title "$RELEASE_TAG (基于 $UPSTREAM_TAG)" \
             --notes-file /tmp/release_notes.md \
             ./dist/index.html
 
-          echo "✅ Release $UPSTREAM_TAG created successfully"
+          echo "✅ Release $RELEASE_TAG created successfully"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

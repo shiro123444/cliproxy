@@ -1,16 +1,56 @@
+# CLI Proxy API Management Center (Enhanced Fork)
+
+[![Sync Upstream](https://github.com/rapeseed-comern/Cli-Proxy-API-Management-Center/actions/workflows/sync-upstream.yml/badge.svg)](https://github.com/rapeseed-comern/Cli-Proxy-API-Management-Center/actions/workflows/sync-upstream.yml)
+
+[中文文档](README_CN.md)
+
+## 🎯 What is this repository?
+
+This is an **enhanced fork** of [router-for-me/Cli-Proxy-API-Management-Center](https://github.com/router-for-me/Cli-Proxy-API-Management-Center) with additional features.
+
+## ✨ Enhanced Features
+
+### Kiro (AWS CodeWhisperer) Quota Display
+- View Kiro quota information on the Quota Management page
+- Support quota refresh on Auth Files page
+- Display base quota and free trial quota
+- Reset time formatted as M/D HH:MM
+
+### GitHub Copilot Quota Display
+- View Copilot quota information on the Quota Management page
+- Support quota refresh on Auth Files page
+- Support both Free/Pro and Business/Enterprise subscription formats
+- Display Chat, Completions, and Premium quotas
+
+## 📥 How to Use
+
+Modify in your **CLI Proxy API Plus** config file:
+
+```yaml
+panel-github-repository: https://github.com/erik6293/Cli-Proxy-API-PLUS-Management
+```
+
+The panel will be automatically downloaded and updated.
+
+---
+
+## 📖 Original README
+
+> The following content is from the upstream project.
+
+---
+
 # CLI Proxy API Management Center
 
 A single-file WebUI (React + TypeScript) for operating and troubleshooting the **CLI Proxy API** via its **Management API** (config, credentials, logs, and usage).
 
-[中文文档](README_CN.md)
-
-**Main Project**: https://github.com/router-for-me/CLIProxyAPI  
-**Example URL**: https://remote.router-for.me/  
+**Main Project**: https://github.com/router-for-me/CLIProxyAPI
+**Example URL**: https://remote.router-for.me/
 **Minimum Required Version**: ≥ 6.3.0 (recommended ≥ 6.5.0)
 
 Since version 6.0.19, the WebUI ships with the main program; access it via `/management.html` on the API port once the service is running.
 
-## What this is (and isn’t)
+## What this is (and isn't)
 
 - This repository is the WebUI only. It talks to the CLI Proxy API **Management API** (`/v0/management`) to read/update config, upload credentials, view logs, and inspect usage.
 - It is **not** a proxy and does not forward traffic.
@@ -68,7 +108,7 @@ This is different from the proxy `api-keys` you manage inside the UI (those are 
 
 ### Remote management
 
-If you connect from a non-localhost browser, the server must allow remote management (e.g. `allow-remote-management: true`).  
+If you connect from a non-localhost browser, the server must allow remote management (e.g. `allow-remote-management: true`).
 See `api.md` for the full authentication rules, server-side limits, and edge cases.
 
 ## What you can manage (mapped to the UI pages)
@@ -78,7 +118,7 @@ See `api.md` for the full authentication rules, server-side limits, and edge cas
 - **API Keys**: manage proxy `api-keys` (add/edit/delete).
 - **AI Providers**:
   - Gemini/Codex/Claude key entries (base URL, headers, proxy, model aliases, excluded models, prefix).
-  - OpenAI-compatible providers (multiple API keys, custom headers, model alias import via `/v1/models`, optional browser-side “chat/completions” test).
+  - OpenAI-compatible providers (multiple API keys, custom headers, model alias import via `/v1/models`, optional browser-side "chat/completions" test).
   - Ampcode integration (upstream URL/key, force mappings, model mapping table).
 - **Auth Files**: upload/download/delete JSON credentials, filter/search/pagination, runtime-only indicators, view supported models per credential (when the server supports it), manage OAuth excluded models (supports `*` wildcards).
 - **OAuth**: start OAuth/device flows for supported providers, poll status, optionally submit callback `redirect_url`; includes iFlow cookie import.
@@ -100,10 +140,10 @@ See `api.md` for the full authentication rules, server-side limits, and edge cas
 
 ## Troubleshooting
 
-- **Can’t connect / 401**: confirm the API address and management key; remote access may require enabling remote management in the server config.
+- **Can't connect / 401**: confirm the API address and management key; remote access may require enabling remote management in the server config.
 - **Repeated auth failures**: the server may temporarily block remote IPs.
-- **Logs page missing**: enable “Logging to file” in Basic Settings; the navigation item is shown only when file logging is enabled.
-- **Some features show “unsupported”**: the backend may be too old or the endpoint is disabled/absent (common for model lists per auth file, excluded models, logs).
+- **Logs page missing**: enable "Logging to file" in Basic Settings; the navigation item is shown only when file logging is enabled.
+- **Some features show "unsupported"**: the backend may be too old or the endpoint is disabled/absent (common for model lists per auth file, excluded models, logs).
 - **OpenAI provider test fails**: the test runs in the browser and depends on network/CORS of the provider endpoint; a failure here does not always mean the server cannot reach it.
 
 ## Development

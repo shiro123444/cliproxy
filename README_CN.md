@@ -1,14 +1,54 @@
+# CLI Proxy API 管理中心 (增强版 Fork)
+
+[![同步上游](https://github.com/rapeseed-comern/Cli-Proxy-API-Management-Center/actions/workflows/sync-upstream.yml/badge.svg)](https://github.com/rapeseed-comern/Cli-Proxy-API-Management-Center/actions/workflows/sync-upstream.yml)
+
+[English](README.md)
+
+## 🎯 这个仓库是什么？
+
+这是 [router-for-me/Cli-Proxy-API-Management-Center](https://github.com/router-for-me/Cli-Proxy-API-Management-Center) 的**增强版 Fork**，添加了额外功能。
+
+## ✨ 增强功能
+
+### Kiro (AWS CodeWhisperer) 配额显示
+- 在配额管理页面查看 Kiro 配额信息
+- 认证文件页面支持配额刷新
+- 显示基础配额和免费试用配额
+- 重置时间格式化为 M/D HH:MM
+
+### GitHub Copilot 配额显示
+- 在配额管理页面查看 Copilot 配额信息
+- 认证文件页面支持配额刷新
+- 支持 Free/Pro 和 Business/Enterprise 两种订阅格式
+- 显示 Chat、Completions、Premium 配额
+
+## 📥 如何使用
+
+在你的 **CLI Proxy API Plus** 配置文件中修改：
+
+```yaml
+panel-github-repository: https://github.com/erik6293/Cli-Proxy-API-PLUS-Management
+```
+
+面板会自动下载并更新。
+
+---
+
+## 📖 原始 README
+
+> 以下内容来自上游项目。
+
+---
+
 # CLI Proxy API 管理中心
 
 用于管理与排障 **CLI Proxy API** 的单文件 WebUI（React + TypeScript），通过 **Management API** 完成配置、凭据、日志与统计等运维工作。
 
-[English](README.md)
-
-**主项目**: https://github.com/router-for-me/CLIProxyAPI  
-**示例地址**: https://remote.router-for.me/  
+**主项目**: https://github.com/router-for-me/CLIProxyAPI
+**示例地址**: https://remote.router-for.me/
 **最低版本要求**: ≥ 6.3.0（推荐 ≥ 6.5.0）
 
-Since version 6.0.19, the WebUI ships with the main program; access it via `/management.html` on the API port once the service is running.
+自 6.0.19 版本起，WebUI 已内置于主程序；服务启动后通过 API 端口访问 `/management.html` 即可使用。
 
 ## 这是什么（以及不是什么）
 
@@ -64,11 +104,11 @@ npm run build
 
 - `Authorization: Bearer <MANAGEMENT_KEY>`（默认）
 
-这与 WebUI 中“API Keys”页面管理的 `api-keys` 不同：后者是代理对外接口（如 OpenAI 兼容接口）给客户端使用的鉴权 key。
+这与 WebUI 中"API Keys"页面管理的 `api-keys` 不同：后者是代理对外接口（如 OpenAI 兼容接口）给客户端使用的鉴权 key。
 
 ### 远程管理
 
-当你从非 localhost 的浏览器访问时，服务端通常需要开启远程管理（例如 `allow-remote-management: true`）。  
+当你从非 localhost 的浏览器访问时，服务端通常需要开启远程管理（例如 `allow-remote-management: true`）。
 完整鉴权规则、限制与边界情况请查看 `api.md`。
 
 ## 功能一览（按页面对应）
@@ -102,7 +142,7 @@ npm run build
 
 - **无法连接 / 401**：确认 API 地址与管理密钥；远程访问可能需要服务端开启远程管理。
 - **反复输错密钥**：服务端可能对远程 IP 进行临时封禁。
-- **日志页面不显示**：需要在“基础设置”里开启“写入日志文件”，导航项才会出现。
+- **日志页面不显示**：需要在"基础设置"里开启"写入日志文件"，导航项才会出现。
 - **功能提示不支持**：多为后端版本较旧或接口未启用/不存在（如：认证文件模型列表、排除模型、日志相关接口）。
 - **OpenAI 提供商测试失败**：测试在浏览器侧执行，会受网络与 CORS 影响；这里失败不一定代表服务端不可用。
 

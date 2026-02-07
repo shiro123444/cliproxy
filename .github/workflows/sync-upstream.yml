@@ -191,6 +191,7 @@ jobs:
 
           # 创建 release 并上传构建产物
           gh release create "$RELEASE_TAG" \
+            --repo ${{ github.repository }} \
             --title "$RELEASE_TAG (基于 $UPSTREAM_TAG)" \
             --notes-file /tmp/release_notes.md \
             dist/management.html

@@ -227,7 +227,6 @@ jobs:
 
           gh issue create \
             --title "⚠️ 上游同步冲突" \
-            --label "sync-conflict" \
             --body-file /tmp/issue_body.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -252,7 +251,6 @@ jobs:
 
           gh issue create \
             --title "❌ 上游同步构建失败" \
-            --label "build-failed" \
             --body-file /tmp/issue_body.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -80,22 +80,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check existing conflict issue
-        id: check_issue
-        run: |
-          # 检查是否已有未关闭的同步冲突 Issue
-          EXISTING_ISSUE=$(gh issue list --state open --search "上游同步冲突 in:title" --json number --jq '.[0].number // empty')
-          if [ -n "$EXISTING_ISSUE" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "number=$EXISTING_ISSUE" >> $GITHUB_OUTPUT
-            echo "⚠️ Existing conflict issue #$EXISTING_ISSUE found"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "✅ No existing conflict issue"
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Setup Node.js
         if: steps.check.outputs.already_up_to_date == 'false'
         uses: actions/setup-node@v4
@@ -136,14 +120,6 @@ jobs:
         run: |
           git push origin main
           echo "✅ Successfully synced with upstream"
-
-      - name: Close existing conflict issue (if resolved)
-        if: steps.merge.outputs.merge_success == 'true' && steps.build.outputs.build_success == 'true' && steps.check_issue.outputs.exists == 'true'
-        run: |
-          gh issue close ${{ steps.check_issue.outputs.number }} --comment "✅ 冲突已自动解决，上游同步成功！"
-          echo "✅ Closed existing conflict issue #${{ steps.check_issue.outputs.number }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         if: |
@@ -200,57 +176,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Issue (merge conflict)
-        if: steps.merge.outputs.merge_success == 'false' && steps.check_issue.outputs.exists == 'false'
+      - name: Report merge conflict
+        if: steps.merge.outputs.merge_success == 'false'
         run: |
-          # 读取冲突文件列表
-          CONFLICT_LIST=""
+          echo "::error::⚠️ 上游同步冲突，需要手动解决"
+          echo ""
+          echo "冲突文件列表："
           if [ -f /tmp/conflict_files.txt ]; then
-            while IFS= read -r file; do
-              [ -n "$file" ] && CONFLICT_LIST="${CONFLICT_LIST}- \`${file}\`"$'\n'
-            done < /tmp/conflict_files.txt
+            cat /tmp/conflict_files.txt
           fi
+          echo ""
+          echo "请参考 docs/merge.md 手动解决冲突"
+          exit 1
 
-          # 写入 issue body 到文件
-          cat > /tmp/issue_body.md << ISSUE_EOF
-          ## 自动同步上游时发现合并冲突
-
-          ### 🔴 冲突文件
-          ${CONFLICT_LIST}
-          ### 🛠️ 解决方法
-
-          请参考 [docs/merge.md](../blob/main/docs/merge.md)
-
-          ### 上游仓库
-          https://github.com/router-for-me/Cli-Proxy-API-Management-Center
-          ISSUE_EOF
-
-          gh issue create \
-            --title "⚠️ 上游同步冲突" \
-            --body-file /tmp/issue_body.md
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Issue (build failed)
+      - name: Report build failure
         if: steps.merge.outputs.merge_success == 'true' && steps.build.outputs.build_success == 'false'
         run: |
           git reset --hard HEAD~1
-
-          cat > /tmp/issue_body.md << 'ISSUE_EOF'
-          ## 自动同步上游后构建失败
-
-          合并成功但构建失败，已自动回滚。
-
-          ### 🛠️ 解决方法
-
-          请参考 [docs/merge.md](../blob/main/docs/merge.md)
-
-          ### 上游仓库
-          https://github.com/router-for-me/Cli-Proxy-API-Management-Center
-          ISSUE_EOF
-
-          gh issue create \
-            --title "❌ 上游同步构建失败" \
-            --body-file /tmp/issue_body.md
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "::error::❌ 上游同步后构建失败，已自动回滚"
+          echo ""
+          echo "请参考 docs/merge.md 手动解决"
+          exit 1

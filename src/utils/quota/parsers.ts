@@ -2,7 +2,9 @@
  * Normalization and parsing functions for quota data.
  */
 
-import type { CodexUsagePayload, GeminiCliQuotaPayload, KiroQuotaPayload, CopilotQuotaPayload } from '@/types';
+import type { CodexUsagePayload, GeminiCliQuotaPayload } from '@/types';
+// Fork 增强: Kiro 和 Copilot 配额支持
+import type { KiroQuotaPayload, CopilotQuotaPayload } from '@/types';
 
 const GEMINI_CLI_MODEL_SUFFIX = '_vertex';
 

@@ -11,10 +11,10 @@ import {
   QuotaSection,
   ANTIGRAVITY_CONFIG,
   CODEX_CONFIG,
-  GEMINI_CLI_CONFIG,
-  KIRO_CONFIG,
-  COPILOT_CONFIG
+  GEMINI_CLI_CONFIG
 } from '@/components/quota';
+// Fork 增强: Kiro 和 Copilot 配额支持
+import { KIRO_CONFIG, COPILOT_CONFIG } from '@/components/quota';
 import type { AuthFileItem } from '@/types';
 import styles from './QuotaPage.module.scss';
 

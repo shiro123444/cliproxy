@@ -3,7 +3,9 @@
  */
 
 import { create } from 'zustand';
-import type { AntigravityQuotaState, CodexQuotaState, GeminiCliQuotaState, KiroQuotaState, CopilotQuotaState } from '@/types';
+import type { AntigravityQuotaState, CodexQuotaState, GeminiCliQuotaState } from '@/types';
+// Fork 增强: Kiro 和 Copilot 配额支持
+import type { KiroQuotaState, CopilotQuotaState } from '@/types';
 
 type QuotaUpdater<T> = T | ((prev: T) => T);
 
@@ -11,11 +13,13 @@ interface QuotaStoreState {
   antigravityQuota: Record<string, AntigravityQuotaState>;
   codexQuota: Record<string, CodexQuotaState>;
   geminiCliQuota: Record<string, GeminiCliQuotaState>;
+  // Fork 增强: Kiro 和 Copilot 配额
   kiroQuota: Record<string, KiroQuotaState>;
   copilotQuota: Record<string, CopilotQuotaState>;
   setAntigravityQuota: (updater: QuotaUpdater<Record<string, AntigravityQuotaState>>) => void;
   setCodexQuota: (updater: QuotaUpdater<Record<string, CodexQuotaState>>) => void;
   setGeminiCliQuota: (updater: QuotaUpdater<Record<string, GeminiCliQuotaState>>) => void;
+  // Fork 增强: Kiro 和 Copilot 配额
   setKiroQuota: (updater: QuotaUpdater<Record<string, KiroQuotaState>>) => void;
   setCopilotQuota: (updater: QuotaUpdater<Record<string, CopilotQuotaState>>) => void;
   clearQuotaCache: () => void;

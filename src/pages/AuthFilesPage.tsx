@@ -20,7 +20,9 @@ import {
   IconTrash2,
 } from '@/components/ui/icons';
 import type { TFunction } from 'i18next';
-import { ANTIGRAVITY_CONFIG, CODEX_CONFIG, GEMINI_CLI_CONFIG, KIRO_CONFIG, COPILOT_CONFIG } from '@/components/quota';
+import { ANTIGRAVITY_CONFIG, CODEX_CONFIG, GEMINI_CLI_CONFIG } from '@/components/quota';
+// Fork 增强: Kiro 和 Copilot 配额支持
+import { KIRO_CONFIG, COPILOT_CONFIG } from '@/components/quota';
 import { useAuthStore, useNotificationStore, useQuotaStore, useThemeStore } from '@/stores';
 import { authFilesApi, usageApi } from '@/services/api';
 import { apiClient } from '@/services/api/client';

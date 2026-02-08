@@ -18,6 +18,9 @@ import type {
   GeminiCliParsedBucket,
   GeminiCliQuotaBucketState,
   GeminiCliQuotaState,
+} from '@/types';
+// Fork 增强: Kiro 和 Copilot 配额支持
+import type {
   KiroQuotaState,
   KiroBaseQuota,
   KiroFreeTrialQuota,
@@ -32,11 +35,6 @@ import {
   CODEX_REQUEST_HEADERS,
   GEMINI_CLI_QUOTA_URL,
   GEMINI_CLI_REQUEST_HEADERS,
-  KIRO_QUOTA_URL,
-  KIRO_REQUEST_HEADERS,
-  KIRO_REQUEST_BODY,
-  COPILOT_QUOTA_URL,
-  COPILOT_REQUEST_HEADERS,
   normalizeAuthIndexValue,
   normalizeGeminiCliModelId,
   normalizeNumberValue,
@@ -46,9 +44,6 @@ import {
   parseAntigravityPayload,
   parseCodexUsagePayload,
   parseGeminiCliQuotaPayload,
-  parseKiroQuotaPayload,
-  parseKiroErrorPayload,
-  parseCopilotQuotaPayload,
   resolveCodexChatgptAccountId,
   resolveCodexPlanType,
   resolveGeminiCliProjectId,
@@ -65,6 +60,17 @@ import {
   isGeminiCliFile,
   isKiroFile,
   isRuntimeOnlyAuthFile,
+} from '@/utils/quota';
+// Fork 增强: Kiro 和 Copilot 配额支持
+import {
+  KIRO_QUOTA_URL,
+  KIRO_REQUEST_HEADERS,
+  KIRO_REQUEST_BODY,
+  COPILOT_QUOTA_URL,
+  COPILOT_REQUEST_HEADERS,
+  parseKiroQuotaPayload,
+  parseKiroErrorPayload,
+  parseCopilotQuotaPayload,
 } from '@/utils/quota';
 import type { QuotaRenderHelpers } from './QuotaCard';
 import styles from '@/pages/QuotaPage.module.scss';

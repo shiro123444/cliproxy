@@ -100,8 +100,10 @@ const AUTH_FILES_UI_STATE_KEY = 'authFilesPage.uiState';
 const clampCardPageSize = (value: number) =>
   Math.min(MAX_CARD_PAGE_SIZE, Math.max(MIN_CARD_PAGE_SIZE, Math.round(value)));
 
+// Fork 增强: 添加 kiro 和 github-copilot 到 QuotaProviderType
 type QuotaProviderType = 'antigravity' | 'codex' | 'gemini-cli' | 'kiro' | 'github-copilot';
 
+// Fork 增强: 添加 kiro 和 github-copilot 到 QUOTA_PROVIDER_TYPES
 const QUOTA_PROVIDER_TYPES = new Set<QuotaProviderType>(['antigravity', 'codex', 'gemini-cli', 'kiro', 'github-copilot']);
 
 const resolveQuotaErrorMessage = (
@@ -250,11 +252,13 @@ export function AuthFilesPage() {
   const antigravityQuota = useQuotaStore((state) => state.antigravityQuota);
   const codexQuota = useQuotaStore((state) => state.codexQuota);
   const geminiCliQuota = useQuotaStore((state) => state.geminiCliQuota);
+  // Fork 增强: Kiro 和 Copilot 配额
   const kiroQuota = useQuotaStore((state) => state.kiroQuota);
   const copilotQuota = useQuotaStore((state) => state.copilotQuota);
   const setAntigravityQuota = useQuotaStore((state) => state.setAntigravityQuota);
   const setCodexQuota = useQuotaStore((state) => state.setCodexQuota);
   const setGeminiCliQuota = useQuotaStore((state) => state.setGeminiCliQuota);
+  // Fork 增强: Kiro 和 Copilot 配额
   const setKiroQuota = useQuotaStore((state) => state.setKiroQuota);
   const setCopilotQuota = useQuotaStore((state) => state.setCopilotQuota);
   const navigate = useNavigate();
@@ -1474,6 +1478,7 @@ export function AuthFilesPage() {
   const getQuotaConfig = (type: QuotaProviderType) => {
     if (type === 'antigravity') return ANTIGRAVITY_CONFIG;
     if (type === 'codex') return CODEX_CONFIG;
+    // Fork 增强: Kiro 和 Copilot 配额
     if (type === 'kiro') return KIRO_CONFIG;
     if (type === 'github-copilot') return COPILOT_CONFIG;
     return GEMINI_CLI_CONFIG;
@@ -1482,6 +1487,7 @@ export function AuthFilesPage() {
   const getQuotaState = (type: QuotaProviderType, fileName: string) => {
     if (type === 'antigravity') return antigravityQuota[fileName];
     if (type === 'codex') return codexQuota[fileName];
+    // Fork 增强: Kiro 和 Copilot 配额
     if (type === 'kiro') return kiroQuota[fileName];
     if (type === 'github-copilot') return copilotQuota[fileName];
     return geminiCliQuota[fileName];
@@ -1500,6 +1506,7 @@ export function AuthFilesPage() {
         setCodexQuota(updater as never);
         return;
       }
+      // Fork 增强: Kiro 和 Copilot 配额
       if (type === 'kiro') {
         setKiroQuota(updater as never);
         return;

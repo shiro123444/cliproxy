@@ -22,14 +22,6 @@ export function isGeminiCliFile(file: AuthFileItem): boolean {
   return resolveAuthProvider(file) === 'gemini-cli';
 }
 
-export function isKiroFile(file: AuthFileItem): boolean {
-  return resolveAuthProvider(file) === 'kiro';
-}
-
-export function isCopilotFile(file: AuthFileItem): boolean {
-  return resolveAuthProvider(file) === 'github-copilot';
-}
-
 export function isRuntimeOnlyAuthFile(file: AuthFileItem): boolean {
   const raw = file['runtime_only'] ?? file.runtimeOnly;
   if (typeof raw === 'boolean') return raw;
@@ -49,4 +41,16 @@ export function isIgnoredGeminiCliModel(modelId: string): boolean {
   return GEMINI_CLI_IGNORED_MODEL_PREFIXES.some(
     (prefix) => modelId === prefix || modelId.startsWith(`${prefix}-`)
   );
+}
+
+// ============================================================================
+// Fork 增强: Kiro 和 Copilot 配额支持
+// ============================================================================
+
+export function isKiroFile(file: AuthFileItem): boolean {
+  return resolveAuthProvider(file) === 'kiro';
+}
+
+export function isCopilotFile(file: AuthFileItem): boolean {
+  return resolveAuthProvider(file) === 'github-copilot';
 }

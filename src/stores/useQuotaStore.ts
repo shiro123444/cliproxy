@@ -36,6 +36,7 @@ export const useQuotaStore = create<QuotaStoreState>((set) => ({
   antigravityQuota: {},
   codexQuota: {},
   geminiCliQuota: {},
+  // Fork 增强: Kiro 和 Copilot 配额
   kiroQuota: {},
   copilotQuota: {},
   setAntigravityQuota: (updater) =>
@@ -50,6 +51,7 @@ export const useQuotaStore = create<QuotaStoreState>((set) => ({
     set((state) => ({
       geminiCliQuota: resolveUpdater(updater, state.geminiCliQuota)
     })),
+  // Fork 增强: Kiro 和 Copilot 配额
   setKiroQuota: (updater) =>
     set((state) => ({
       kiroQuota: resolveUpdater(updater, state.kiroQuota)
@@ -63,6 +65,7 @@ export const useQuotaStore = create<QuotaStoreState>((set) => ({
       antigravityQuota: {},
       codexQuota: {},
       geminiCliQuota: {},
+      // Fork 增强: Kiro 和 Copilot 配额
       kiroQuota: {},
       copilotQuota: {}
     })

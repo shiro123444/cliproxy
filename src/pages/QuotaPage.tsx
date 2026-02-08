@@ -89,6 +89,7 @@ export function QuotaPage() {
         loading={loading}
         disabled={disableControls}
       />
+      {/* Fork 增强: Kiro 和 Copilot 配额显示 */}
       <QuotaSection
         config={KIRO_CONFIG}
         files={files}

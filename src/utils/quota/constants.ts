@@ -38,14 +38,6 @@ export const TYPE_COLORS: Record<string, TypeColorSet> = {
     light: { bg: '#e0f7fa', text: '#006064' },
     dark: { bg: '#004d40', text: '#80deea' },
   },
-  kiro: {
-    light: { bg: '#fff8e1', text: '#ff8f00' },
-    dark: { bg: '#ff6f00', text: '#ffe082' },
-  },
-  'github-copilot': {
-    light: { bg: '#f0f0f0', text: '#24292f' },
-    dark: { bg: '#30363d', text: '#c9d1d9' },
-  },
   iflow: {
     light: { bg: '#f3e5f5', text: '#7b1fa2' },
     dark: { bg: '#4a148c', text: '#ce93d8' },
@@ -57,6 +49,15 @@ export const TYPE_COLORS: Record<string, TypeColorSet> = {
   unknown: {
     light: { bg: '#f0f0f0', text: '#666666', border: '1px dashed #999999' },
     dark: { bg: '#3a3a3a', text: '#aaaaaa', border: '1px dashed #666666' },
+  },
+  // Fork 增强: Kiro 和 Copilot 配额支持
+  kiro: {
+    light: { bg: '#fff8e1', text: '#ff8f00' },
+    dark: { bg: '#ff6f00', text: '#ffe082' },
+  },
+  'github-copilot': {
+    light: { bg: '#f0f0f0', text: '#24292f' },
+    dark: { bg: '#30363d', text: '#c9d1d9' },
   },
 };
 
@@ -167,6 +168,10 @@ export const CODEX_REQUEST_HEADERS = {
   'Content-Type': 'application/json',
   'User-Agent': 'codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal',
 };
+
+// ============================================================================
+// Fork 增强: Kiro 和 Copilot 配额支持
+// ============================================================================
 
 // Kiro (AWS CodeWhisperer) API configuration
 export const KIRO_QUOTA_URL = 'https://codewhisperer.us-east-1.amazonaws.com';

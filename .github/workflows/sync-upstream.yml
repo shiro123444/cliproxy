@@ -105,6 +105,8 @@ jobs:
       - name: Build and package
         if: steps.check.outputs.already_up_to_date == 'false' && steps.merge.outputs.merge_success == 'true'
         id: build
+        env:
+          VERSION: ${{ steps.upstream_release.outputs.tag }}-plus
         run: |
           npm ci
           if npm run build; then
@@ -134,7 +136,7 @@ jobs:
           # 如果代码已是最新但没有 release，需要先构建
           if [ "${{ steps.check.outputs.already_up_to_date }}" == "true" ]; then
             npm ci
-            npm run build
+            VERSION="${UPSTREAM_TAG}-plus" npm run build
           fi
 
           # 重命名构建产物（与上游 release.yml 保持一致）

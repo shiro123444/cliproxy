@@ -62,21 +62,51 @@ jobs:
             echo "⚠️ No upstream release found"
           fi
 
-      - name: Check if release exists locally
+      - name: Calculate next release version
         id: local_release
         if: steps.upstream_release.outputs.has_release == 'true'
         run: |
           UPSTREAM_TAG="${{ steps.upstream_release.outputs.tag }}"
-          RELEASE_TAG="${UPSTREAM_TAG}-plus"
-          # 检查本地是否已有该 tag 的 release（通过 API 检查）
-          RELEASE_EXISTS=$(gh api repos/${{ github.repository }}/releases/tags/$RELEASE_TAG --silent 2>/dev/null && echo "true" || echo "false")
-          if [ "$RELEASE_EXISTS" == "true" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "✅ Release $RELEASE_TAG already exists"
-          else
+          BASE_TAG="${UPSTREAM_TAG}-plus"
+
+          # 获取所有基于该上游版本的 plus releases
+          # 格式: v1.4.9-plus, v1.4.9-plus.1, v1.4.9-plus.2, ...
+          EXISTING_TAGS=$(gh api repos/${{ github.repository }}/releases --paginate --jq '.[].tag_name' 2>/dev/null | grep "^${BASE_TAG}" || true)
+
+          if [ -z "$EXISTING_TAGS" ]; then
+            # 没有任何 plus release，使用基础版本
+            NEXT_TAG="${BASE_TAG}"
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "📦 Release $RELEASE_TAG not found locally"
+            echo "📦 No existing release, will create $NEXT_TAG"
+          else
+            # 找到最大的版本号
+            MAX_NUM=-1
+            while IFS= read -r tag; do
+              if [ "$tag" == "$BASE_TAG" ]; then
+                # v1.4.9-plus 相当于 .0
+                NUM=0
+              else
+                # v1.4.9-plus.N 提取 N
+                NUM=$(echo "$tag" | sed "s/^${BASE_TAG}\.//" | grep -E '^[0-9]+$' || echo "-1")
+              fi
+              if [ "$NUM" -gt "$MAX_NUM" ]; then
+                MAX_NUM=$NUM
+              fi
+            done <<< "$EXISTING_TAGS"
+
+            # 递增版本号
+            NEXT_NUM=$((MAX_NUM + 1))
+            if [ "$NEXT_NUM" -eq 0 ]; then
+              NEXT_TAG="${BASE_TAG}"
+            else
+              NEXT_TAG="${BASE_TAG}.${NEXT_NUM}"
+            fi
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "📦 Found existing releases, next version: $NEXT_TAG"
           fi
+
+          echo "next_tag=$NEXT_TAG" >> $GITHUB_OUTPUT
+          echo "base_tag=$BASE_TAG" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -106,7 +136,7 @@ jobs:
         if: steps.check.outputs.already_up_to_date == 'false' && steps.merge.outputs.merge_success == 'true'
         id: build
         env:
-          VERSION: ${{ steps.upstream_release.outputs.tag }}-plus
+          VERSION: ${{ steps.local_release.outputs.next_tag }}
         run: |
           npm ci
           if npm run build; then
@@ -126,17 +156,15 @@ jobs:
       - name: Create Release
         if: |
           steps.upstream_release.outputs.has_release == 'true' &&
-          steps.local_release.outputs.exists == 'false' &&
           (steps.build.outputs.build_success == 'true' || steps.check.outputs.already_up_to_date == 'true')
         run: |
           UPSTREAM_TAG="${{ steps.upstream_release.outputs.tag }}"
-          # 使用 -plus 后缀区分 Fork 版本
-          RELEASE_TAG="${UPSTREAM_TAG}-plus"
+          RELEASE_TAG="${{ steps.local_release.outputs.next_tag }}"
 
           # 如果代码已是最新但没有 release，需要先构建
           if [ "${{ steps.check.outputs.already_up_to_date }}" == "true" ]; then
             npm ci
-            VERSION="${UPSTREAM_TAG}-plus" npm run build
+            VERSION="${RELEASE_TAG}" npm run build
           fi
 
           # 重命名构建产物（与上游 release.yml 保持一致）

@@ -164,7 +164,8 @@ jobs:
           # 如果代码已是最新但没有 release，需要先构建
           if [ "${{ steps.check.outputs.already_up_to_date }}" == "true" ]; then
             npm ci
-            VERSION="${RELEASE_TAG}" npm run build
+            export VERSION="${RELEASE_TAG}"
+            npm run build
           fi
 
           # 重命名构建产物（与上游 release.yml 保持一致）

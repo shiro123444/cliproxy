@@ -15,14 +15,6 @@ CLIProxyAPI/logs/
 .env
 .env.local
 
-# Auth files (敏感信息)
-CLIProxyAPI/auths/
-auths/
-
-# Docker volumes
-CLIProxyAPI/config.yaml
-*.local.yaml
-
 # IDE
 .vscode/
 .idea/

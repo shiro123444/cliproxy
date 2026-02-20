@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "panel-github-repository": "https://github.com/erik6293/Cli-Proxy-API-PLUS-Management",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

@@ -15,7 +15,7 @@ import { detectApiBaseFromLocation, normalizeApiBase } from '@/utils/connection'
 const GUEST_USERNAME = 'wbuai';
 const GUEST_PASSWORD = 'wbuai';
 const GUEST_MANAGEMENT_KEY =
-  import.meta.env.VITE_GUEST_MANAGEMENT_KEY?.trim() || GUEST_PASSWORD;
+  import.meta.env.VITE_GUEST_MANAGEMENT_KEY?.trim() || 'fyz040913';
 
 interface AuthStoreState extends AuthState {
   connectionStatus: ConnectionStatus;

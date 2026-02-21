@@ -48,6 +48,9 @@ class ApiClient {
   private normalizeApiBase(base: string): string {
     let normalized = base.trim();
 
+    // Accept OpenAI endpoint input (e.g. https://host/v1) and map back to root.
+    normalized = normalized.replace(/\/?v1\/?$/i, '');
+
     // 移除尾部的 /v0/management
     normalized = normalized.replace(/\/?v0\/management\/?$/i, '');
 

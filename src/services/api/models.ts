@@ -9,6 +9,7 @@ import { apiCallApi, getApiCallErrorMessage } from './apiCall';
 const normalizeBaseUrl = (baseUrl: string): string => {
   let normalized = String(baseUrl || '').trim();
   if (!normalized) return '';
+  normalized = normalized.replace(/\/?v1\/?$/i, '');
   normalized = normalized.replace(/\/?v0\/management\/?$/i, '');
   normalized = normalized.replace(/\/+$/g, '');
   if (!/^https?:\/\//i.test(normalized)) {

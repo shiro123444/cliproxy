@@ -60,6 +60,7 @@ func (p *provider) Authenticate(_ context.Context, r *http.Request) (*sdkaccess.
 		return nil, sdkaccess.NewNotHandledError()
 	}
 	authHeader := r.Header.Get("Authorization")
+	authHeaders := r.Header.Values("Authorization")
 	authHeaderGoogle := r.Header.Get("X-Goog-Api-Key")
 	authHeaderAnthropic := r.Header.Get("X-Api-Key")
 	queryKey := ""
@@ -72,18 +73,28 @@ func (p *provider) Authenticate(_ context.Context, r *http.Request) (*sdkaccess.
 		return nil, sdkaccess.NewNoCredentialsError()
 	}
 
-	apiKey := extractBearerToken(authHeader)
+	authCandidates := extractBearerTokens(authHeader)
+	if len(authHeaders) > 1 {
+		authCandidates = extractBearerTokensFromHeaders(authHeaders)
+	}
 
-	candidates := []struct {
+	type credentialCandidate struct {
 		value  string
 		source string
-	}{
-		{apiKey, "authorization"},
-		{authHeaderGoogle, "x-goog-api-key"},
-		{authHeaderAnthropic, "x-api-key"},
-		{queryKey, "query-key"},
-		{queryAuthToken, "query-auth-token"},
 	}
+
+	candidates := make([]credentialCandidate, 0, len(authCandidates)+4)
+
+	for _, token := range authCandidates {
+		candidates = append(candidates, credentialCandidate{token, "authorization"})
+	}
+
+	candidates = append(candidates,
+		credentialCandidate{authHeaderGoogle, "x-goog-api-key"},
+		credentialCandidate{authHeaderAnthropic, "x-api-key"},
+		credentialCandidate{queryKey, "query-key"},
+		credentialCandidate{queryAuthToken, "query-auth-token"},
+	)
 
 	for _, candidate := range candidates {
 		if candidate.value == "" {
@@ -115,6 +126,53 @@ func extractBearerToken(header string) string {
 		return header
 	}
 	return strings.TrimSpace(parts[1])
+}
+
+func extractBearerTokens(header string) []string {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return nil
+	}
+
+	parts := strings.Split(header, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, p := range parts {
+		token := extractBearerToken(strings.TrimSpace(p))
+		if token == "" {
+			continue
+		}
+		if _, ok := seen[token]; ok {
+			continue
+		}
+		seen[token] = struct{}{}
+		out = append(out, token)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func extractBearerTokensFromHeaders(headers []string) []string {
+	if len(headers) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(headers))
+	seen := make(map[string]struct{}, len(headers))
+	for _, h := range headers {
+		for _, token := range extractBearerTokens(h) {
+			if _, ok := seen[token]; ok {
+				continue
+			}
+			seen[token] = struct{}{}
+			out = append(out, token)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func normalizeKeys(keys []string) []string {

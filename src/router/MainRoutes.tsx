@@ -18,6 +18,7 @@ import { UsagePage } from '@/pages/UsagePage';
 import { ConfigPage } from '@/pages/ConfigPage';
 import { LogsPage } from '@/pages/LogsPage';
 import { SystemPage } from '@/pages/SystemPage';
+import { useAuthStore } from '@/stores';
 
 const mainRoutes = [
   { path: '/', element: <DashboardPage /> },
@@ -63,6 +64,15 @@ const mainRoutes = [
   { path: '*', element: <Navigate to="/" replace /> },
 ];
 
+const guestRoutes = [
+  { path: '/', element: <DashboardPage /> },
+  { path: '/dashboard', element: <DashboardPage /> },
+  { path: '/quota', element: <QuotaPage /> },
+  { path: '/usage', element: <UsagePage /> },
+  { path: '*', element: <Navigate to="/" replace /> },
+];
+
 export function MainRoutes({ location }: { location?: Location }) {
-  return useRoutes(mainRoutes, location);
+  const accessMode = useAuthStore((state) => state.accessMode);
+  return useRoutes(accessMode === 'guest' ? guestRoutes : mainRoutes, location);
 }

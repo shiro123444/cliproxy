@@ -30,6 +30,7 @@ interface ProviderStats {
 export function DashboardPage() {
   const { t, i18n } = useTranslation();
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
+  const isGuest = useAuthStore((state) => state.accessMode === 'guest');
   const serverVersion = useAuthStore((state) => state.serverVersion);
   const serverBuildDate = useAuthStore((state) => state.serverBuildDate);
   const apiBase = useAuthStore((state) => state.apiBase);
@@ -179,47 +180,89 @@ export function DashboardPage() {
       (providerStats.openai ?? 0)
     : 0;
 
-  const quickStats: QuickStat[] = [
-    {
-      label: t('dashboard.management_keys'),
-      value: stats.apiKeys ?? '-',
-      icon: <IconKey size={24} />,
-      path: '/config',
-      loading: loading && stats.apiKeys === null,
-      sublabel: t('nav.config_management')
-    },
-    {
-      label: t('nav.ai_providers'),
-      value: loading ? '-' : providerStatsReady ? totalProviderKeys : '-',
-      icon: <IconBot size={24} />,
-      path: '/ai-providers',
-      loading: loading,
-      sublabel: hasProviderStats
-        ? t('dashboard.provider_keys_detail', {
-            gemini: providerStats.gemini ?? '-',
-            codex: providerStats.codex ?? '-',
-            claude: providerStats.claude ?? '-',
-            openai: providerStats.openai ?? '-'
-          })
-        : undefined
-    },
-    {
-      label: t('nav.auth_files'),
-      value: stats.authFiles ?? '-',
-      icon: <IconFileText size={24} />,
-      path: '/auth-files',
-      loading: loading && stats.authFiles === null,
-      sublabel: t('dashboard.oauth_credentials')
-    },
-    {
-      label: t('dashboard.available_models'),
-      value: modelsLoading ? '-' : models.length,
-      icon: <IconSatellite size={24} />,
-      path: '/system',
-      loading: modelsLoading,
-      sublabel: t('dashboard.available_models_desc')
-    }
-  ];
+  const quickStats: QuickStat[] = isGuest
+    ? [
+        {
+          label: t('dashboard.management_keys'),
+          value: stats.apiKeys ?? '-',
+          icon: <IconKey size={24} />,
+          path: '/quota',
+          loading: loading && stats.apiKeys === null,
+          sublabel: t('nav.quota_management')
+        },
+        {
+          label: t('nav.ai_providers'),
+          value: loading ? '-' : providerStatsReady ? totalProviderKeys : '-',
+          icon: <IconBot size={24} />,
+          path: '/usage',
+          loading: loading,
+          sublabel: hasProviderStats
+            ? t('dashboard.provider_keys_detail', {
+                gemini: providerStats.gemini ?? '-',
+                codex: providerStats.codex ?? '-',
+                claude: providerStats.claude ?? '-',
+                openai: providerStats.openai ?? '-'
+              })
+            : undefined
+        },
+        {
+          label: t('nav.auth_files'),
+          value: stats.authFiles ?? '-',
+          icon: <IconFileText size={24} />,
+          path: '/quota',
+          loading: loading && stats.authFiles === null,
+          sublabel: t('nav.quota_management')
+        },
+        {
+          label: t('dashboard.available_models'),
+          value: modelsLoading ? '-' : models.length,
+          icon: <IconSatellite size={24} />,
+          path: '/usage',
+          loading: modelsLoading,
+          sublabel: t('dashboard.available_models_desc')
+        }
+      ]
+    : [
+        {
+          label: t('dashboard.management_keys'),
+          value: stats.apiKeys ?? '-',
+          icon: <IconKey size={24} />,
+          path: '/config',
+          loading: loading && stats.apiKeys === null,
+          sublabel: t('nav.config_management')
+        },
+        {
+          label: t('nav.ai_providers'),
+          value: loading ? '-' : providerStatsReady ? totalProviderKeys : '-',
+          icon: <IconBot size={24} />,
+          path: '/ai-providers',
+          loading: loading,
+          sublabel: hasProviderStats
+            ? t('dashboard.provider_keys_detail', {
+                gemini: providerStats.gemini ?? '-',
+                codex: providerStats.codex ?? '-',
+                claude: providerStats.claude ?? '-',
+                openai: providerStats.openai ?? '-'
+              })
+            : undefined
+        },
+        {
+          label: t('nav.auth_files'),
+          value: stats.authFiles ?? '-',
+          icon: <IconFileText size={24} />,
+          path: '/auth-files',
+          loading: loading && stats.authFiles === null,
+          sublabel: t('dashboard.oauth_credentials')
+        },
+        {
+          label: t('dashboard.available_models'),
+          value: modelsLoading ? '-' : models.length,
+          icon: <IconSatellite size={24} />,
+          path: '/system',
+          loading: modelsLoading,
+          sublabel: t('dashboard.available_models_desc')
+        }
+      ];
 
   return (
     <div className={styles.dashboard}>
@@ -318,9 +361,11 @@ export function DashboardPage() {
               </div>
             )}
           </div>
-          <Link to="/config" className={styles.viewMoreLink}>
-            {t('dashboard.edit_settings')} →
-          </Link>
+          {!isGuest && (
+            <Link to="/config" className={styles.viewMoreLink}>
+              {t('dashboard.edit_settings')} →
+            </Link>
+          )}
         </div>
       )}
     </div>

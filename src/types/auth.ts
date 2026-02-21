@@ -10,12 +10,21 @@ export interface LoginCredentials {
   rememberPassword?: boolean;
 }
 
+export interface GuestCredentials {
+  apiBase: string;
+  username: string;
+  password: string;
+}
+
+export type AuthAccessMode = 'full' | 'guest';
+
 // 认证状态
 export interface AuthState {
   isAuthenticated: boolean;
   apiBase: string;
   managementKey: string;
   rememberPassword: boolean;
+  accessMode: AuthAccessMode;
   serverVersion: string | null;
   serverBuildDate: string | null;
 }

@@ -9,12 +9,14 @@ import styles from '@/pages/UsagePage.module.scss';
 export interface PriceSettingsCardProps {
   modelNames: string[];
   modelPrices: Record<string, ModelPrice>;
+  readOnly?: boolean;
   onPricesChange: (prices: Record<string, ModelPrice>) => void;
 }
 
 export function PriceSettingsCard({
   modelNames,
   modelPrices,
+  readOnly = false,
   onPricesChange
 }: PriceSettingsCardProps) {
   const { t } = useTranslation();
@@ -77,6 +79,7 @@ export function PriceSettingsCard({
                 value={selectedModel}
                 onChange={(e) => handleModelSelect(e.target.value)}
                 className={styles.select}
+                disabled={readOnly}
               >
                 <option value="">{t('usage_stats.model_price_select_placeholder')}</option>
                 {modelNames.map((name) => (
@@ -94,6 +97,7 @@ export function PriceSettingsCard({
                 onChange={(e) => setPromptPrice(e.target.value)}
                 placeholder="0.00"
                 step="0.0001"
+                disabled={readOnly}
               />
             </div>
             <div className={styles.formField}>
@@ -104,6 +108,7 @@ export function PriceSettingsCard({
                 onChange={(e) => setCompletionPrice(e.target.value)}
                 placeholder="0.00"
                 step="0.0001"
+                disabled={readOnly}
               />
             </div>
             <div className={styles.formField}>
@@ -114,9 +119,10 @@ export function PriceSettingsCard({
                 onChange={(e) => setCachePrice(e.target.value)}
                 placeholder="0.00"
                 step="0.0001"
+                disabled={readOnly}
               />
             </div>
-            <Button variant="primary" onClick={handleSavePrice} disabled={!selectedModel}>
+            <Button variant="primary" onClick={handleSavePrice} disabled={readOnly || !selectedModel}>
               {t('common.save')}
             </Button>
           </div>
@@ -144,10 +150,20 @@ export function PriceSettingsCard({
                     </div>
                   </div>
                   <div className={styles.priceActions}>
-                    <Button variant="secondary" size="sm" onClick={() => handleEditPrice(model)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleEditPrice(model)}
+                      disabled={readOnly}
+                    >
                       {t('common.edit')}
                     </Button>
-                    <Button variant="danger" size="sm" onClick={() => handleDeletePrice(model)}>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleDeletePrice(model)}
+                      disabled={readOnly}
+                    >
                       {t('common.delete')}
                     </Button>
                   </div>

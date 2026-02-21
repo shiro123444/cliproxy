@@ -233,6 +233,32 @@
   }
 }
 
+.guestDivider {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  color: var(--text-secondary);
+  font-size: 12px;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+  }
+
+  span {
+    white-space: nowrap;
+  }
+}
+
+.guestHint {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 // 错误提示框
 .errorBox {
   background: rgba(239, 68, 68, 0.1);

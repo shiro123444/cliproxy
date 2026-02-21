@@ -7,6 +7,7 @@ export interface ChartLineSelectorProps {
   chartLines: string[];
   modelNames: string[];
   maxLines?: number;
+  readOnly?: boolean;
   onChange: (lines: string[]) => void;
 }
 
@@ -14,6 +15,7 @@ export function ChartLineSelector({
   chartLines,
   modelNames,
   maxLines = 9,
+  readOnly = false,
   onChange
 }: ChartLineSelectorProps) {
   const { t } = useTranslation();
@@ -53,7 +55,7 @@ export function ChartLineSelector({
             variant="secondary"
             size="sm"
             onClick={handleAdd}
-            disabled={chartLines.length >= maxLines}
+            disabled={readOnly || chartLines.length >= maxLines}
           >
             {t('usage_stats.chart_line_add')}
           </Button>
@@ -70,6 +72,7 @@ export function ChartLineSelector({
               value={line}
               onChange={(e) => handleChange(index, e.target.value)}
               className={styles.select}
+              disabled={readOnly}
             >
               <option value="all">{t('usage_stats.chart_line_all')}</option>
               {modelNames.map((name) => (
@@ -79,7 +82,7 @@ export function ChartLineSelector({
               ))}
             </select>
             {chartLines.length > 1 && (
-              <Button variant="danger" size="sm" onClick={() => handleRemove(index)}>
+              <Button variant="danger" size="sm" onClick={() => handleRemove(index)} disabled={readOnly}>
                 {t('usage_stats.chart_line_delete')}
               </Button>
             )}

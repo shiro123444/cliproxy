@@ -16,6 +16,7 @@ class ApiClient {
   private instance: AxiosInstance;
   private apiBase: string = '';
   private managementKey: string = '';
+  private readOnly: boolean = false;
 
   constructor() {
     this.instance = axios.create({
@@ -40,6 +41,10 @@ class ApiClient {
     } else {
       this.instance.defaults.timeout = REQUEST_TIMEOUT_MS;
     }
+  }
+
+  setReadOnly(enabled: boolean): void {
+    this.readOnly = Boolean(enabled);
   }
 
   /**
@@ -111,6 +116,15 @@ class ApiClient {
     // 请求拦截器
     this.instance.interceptors.request.use(
       (config) => {
+        const method = (config.method || 'get').toString().toLowerCase();
+        if (this.readOnly && method !== 'get' && method !== 'head' && method !== 'options') {
+          const readOnlyError = new Error('Guest mode is read-only. This operation is blocked.') as ApiError;
+          readOnlyError.name = 'ApiError';
+          readOnlyError.status = 403;
+          readOnlyError.code = 'READ_ONLY_MODE';
+          throw readOnlyError;
+        }
+
         // 设置 baseURL
         config.baseURL = this.apiBase;
         if (config.url) {

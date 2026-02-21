@@ -5,12 +5,17 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { AuthState, LoginCredentials, ConnectionStatus } from '@/types';
+import type { AuthState, LoginCredentials, GuestCredentials, ConnectionStatus } from '@/types';
 import { STORAGE_KEY_AUTH } from '@/utils/constants';
 import { secureStorage } from '@/services/storage/secureStorage';
 import { apiClient } from '@/services/api/client';
 import { useConfigStore } from './useConfigStore';
 import { detectApiBaseFromLocation, normalizeApiBase } from '@/utils/connection';
+
+const GUEST_USERNAME = 'wbuai';
+const GUEST_PASSWORD = 'wbuai';
+const GUEST_MANAGEMENT_KEY =
+  import.meta.env.VITE_GUEST_MANAGEMENT_KEY?.trim() || GUEST_PASSWORD;
 
 interface AuthStoreState extends AuthState {
   connectionStatus: ConnectionStatus;
@@ -18,6 +23,7 @@ interface AuthStoreState extends AuthState {
 
   // 操作
   login: (credentials: LoginCredentials) => Promise<void>;
+  loginGuest: (credentials: GuestCredentials) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<boolean>;
   restoreSession: () => Promise<boolean>;
@@ -35,6 +41,7 @@ export const useAuthStore = create<AuthStoreState>()(
       apiBase: '',
       managementKey: '',
       rememberPassword: false,
+      accessMode: 'full',
       serverVersion: null,
       serverBuildDate: null,
       connectionStatus: 'disconnected',
@@ -53,17 +60,37 @@ export const useAuthStore = create<AuthStoreState>()(
             secureStorage.getItem<string>('apiUrl', { encrypt: true });
           const legacyKey = secureStorage.getItem<string>('managementKey');
 
-          const { apiBase, managementKey, rememberPassword } = get();
+          const { apiBase, managementKey, rememberPassword, accessMode } = get();
           const resolvedBase = normalizeApiBase(apiBase || legacyBase || detectApiBaseFromLocation());
           const resolvedKey = managementKey || legacyKey || '';
-          const resolvedRememberPassword = rememberPassword || Boolean(managementKey) || Boolean(legacyKey);
+          const resolvedAccessMode = accessMode === 'guest' ? 'guest' : 'full';
+          const resolvedRememberPassword =
+            resolvedAccessMode === 'guest'
+              ? false
+              : rememberPassword || Boolean(managementKey) || Boolean(legacyKey);
 
           set({
             apiBase: resolvedBase,
             managementKey: resolvedKey,
+            accessMode: resolvedAccessMode,
             rememberPassword: resolvedRememberPassword
           });
           apiClient.setConfig({ apiBase: resolvedBase, managementKey: resolvedKey });
+          apiClient.setReadOnly(resolvedAccessMode === 'guest');
+
+          if (wasLoggedIn && resolvedAccessMode === 'guest' && resolvedBase) {
+            try {
+              await get().loginGuest({
+                apiBase: resolvedBase,
+                username: GUEST_USERNAME,
+                password: GUEST_PASSWORD
+              });
+              return true;
+            } catch (error) {
+              console.warn('Auto guest login failed:', error);
+              return false;
+            }
+          }
 
           if (wasLoggedIn && resolvedBase && resolvedKey) {
             try {
@@ -85,6 +112,53 @@ export const useAuthStore = create<AuthStoreState>()(
         return restoreSessionPromise;
       },
 
+      loginGuest: async (credentials) => {
+        const apiBase = normalizeApiBase(credentials.apiBase || detectApiBaseFromLocation());
+        const username = credentials.username.trim().toLowerCase();
+        const password = credentials.password.trim();
+
+        if (username !== GUEST_USERNAME || password !== GUEST_PASSWORD) {
+          throw new Error('Guest username or password is invalid');
+        }
+
+        set({ connectionStatus: 'connecting', connectionError: null });
+
+        apiClient.setConfig({
+          apiBase,
+          managementKey: GUEST_MANAGEMENT_KEY
+        });
+        apiClient.setReadOnly(true);
+
+        try {
+          await useConfigStore.getState().fetchConfig(undefined, true);
+          set({
+            connectionStatus: 'connected',
+            connectionError: null
+          });
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : typeof error === 'string'
+                ? error
+                : null;
+
+          set({
+            connectionStatus: 'disconnected',
+            connectionError: message
+          });
+        }
+
+        set({
+          isAuthenticated: true,
+          apiBase,
+          managementKey: GUEST_MANAGEMENT_KEY,
+          rememberPassword: false,
+          accessMode: 'guest'
+        });
+        localStorage.setItem('isLoggedIn', 'true');
+      },
+
       // 登录
       login: async (credentials) => {
         const apiBase = normalizeApiBase(credentials.apiBase);
@@ -99,6 +173,7 @@ export const useAuthStore = create<AuthStoreState>()(
             apiBase,
             managementKey
           });
+          apiClient.setReadOnly(false);
 
           // 测试连接 - 获取配置
           await useConfigStore.getState().fetchConfig(undefined, true);
@@ -109,6 +184,7 @@ export const useAuthStore = create<AuthStoreState>()(
             apiBase,
             managementKey,
             rememberPassword,
+            accessMode: 'full',
             connectionStatus: 'connected',
             connectionError: null
           });
@@ -140,17 +216,57 @@ export const useAuthStore = create<AuthStoreState>()(
           isAuthenticated: false,
           apiBase: '',
           managementKey: '',
+          rememberPassword: false,
+          accessMode: 'full',
           serverVersion: null,
           serverBuildDate: null,
           connectionStatus: 'disconnected',
           connectionError: null
         });
+        apiClient.setReadOnly(false);
         localStorage.removeItem('isLoggedIn');
       },
 
       // 检查认证状态
       checkAuth: async () => {
-        const { managementKey, apiBase } = get();
+        const { managementKey, apiBase, accessMode } = get();
+
+        if (accessMode === 'guest') {
+          if (!apiBase) {
+            return false;
+          }
+
+          try {
+            apiClient.setConfig({
+              apiBase,
+              managementKey: managementKey || GUEST_MANAGEMENT_KEY
+            });
+            apiClient.setReadOnly(true);
+
+            await useConfigStore.getState().fetchConfig();
+
+            set({
+              isAuthenticated: true,
+              connectionStatus: 'connected',
+              connectionError: null
+            });
+            return true;
+          } catch (error: unknown) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : typeof error === 'string'
+                  ? error
+                  : null;
+
+            set({
+              isAuthenticated: true,
+              connectionStatus: 'disconnected',
+              connectionError: message
+            });
+            return true;
+          }
+        }
 
         if (!managementKey || !apiBase) {
           return false;
@@ -159,6 +275,7 @@ export const useAuthStore = create<AuthStoreState>()(
         try {
           // 重新配置客户端
           apiClient.setConfig({ apiBase, managementKey });
+          apiClient.setReadOnly(false);
 
           // 验证连接
           await useConfigStore.getState().fetchConfig();
@@ -207,8 +324,11 @@ export const useAuthStore = create<AuthStoreState>()(
       })),
       partialize: (state) => ({
         apiBase: state.apiBase,
-        ...(state.rememberPassword ? { managementKey: state.managementKey } : {}),
+        ...(state.rememberPassword || state.accessMode === 'guest'
+          ? { managementKey: state.managementKey }
+          : {}),
         rememberPassword: state.rememberPassword,
+        accessMode: state.accessMode,
         serverVersion: state.serverVersion,
         serverBuildDate: state.serverBuildDate
       })
@@ -219,7 +339,11 @@ export const useAuthStore = create<AuthStoreState>()(
 // 监听全局未授权事件
 if (typeof window !== 'undefined') {
   window.addEventListener('unauthorized', () => {
-    useAuthStore.getState().logout();
+    const authState = useAuthStore.getState();
+    if (authState.accessMode === 'guest') {
+      return;
+    }
+    authState.logout();
   });
 
   window.addEventListener(

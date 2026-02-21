@@ -73,6 +73,7 @@ export function LoginPage() {
   const setLanguage = useLanguageStore((state) => state.setLanguage);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const login = useAuthStore((state) => state.login);
+  const loginGuest = useAuthStore((state) => state.loginGuest);
   const restoreSession = useAuthStore((state) => state.restoreSession);
   const storedBase = useAuthStore((state) => state.apiBase);
   const storedKey = useAuthStore((state) => state.managementKey);
@@ -87,6 +88,8 @@ export function LoginPage() {
   const [autoLoading, setAutoLoading] = useState(true);
   const [autoLoginSuccess, setAutoLoginSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [guestUsername, setGuestUsername] = useState('');
+  const [guestPassword, setGuestPassword] = useState('');
 
   const detectedBase = useMemo(() => detectApiBaseFromLocation(), []);
   const handleLanguageChange = useCallback(
@@ -161,6 +164,56 @@ export function LoginPage() {
       }
     },
     [loading, handleSubmit]
+  );
+
+  const handleGuestSubmit = useCallback(async () => {
+    if (!guestUsername.trim() || !guestPassword.trim()) {
+      setError(
+        t('login.guest_required', {
+          defaultValue: '请输入访客账号和密码'
+        })
+      );
+      return;
+    }
+
+    const baseToUse = apiBase ? normalizeApiBase(apiBase) : detectedBase;
+    setLoading(true);
+    setError('');
+    try {
+      await loginGuest({
+        apiBase: baseToUse,
+        username: guestUsername.trim(),
+        password: guestPassword.trim()
+      });
+      showNotification(
+        t('login.guest_login_success', {
+          defaultValue: '访客模式已启用（只读）'
+        }),
+        'success'
+      );
+      navigate('/', { replace: true });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : t('login.guest_login_failed', {
+              defaultValue: '访客账号或密码错误'
+            });
+      setError(message);
+      showNotification(`${t('notification.login_failed')}: ${message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBase, detectedBase, guestPassword, guestUsername, loginGuest, navigate, showNotification, t]);
+
+  const handleGuestSubmitKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key === 'Enter' && !loading) {
+        event.preventDefault();
+        handleGuestSubmit();
+      }
+    },
+    [handleGuestSubmit, loading]
   );
 
   if (isAuthenticated && !autoLoading && !autoLoginSuccess) {
@@ -290,6 +343,43 @@ export function LoginPage() {
               <Button fullWidth onClick={handleSubmit} loading={loading}>
                 {loading ? t('login.submitting') : t('login.submit_button')}
               </Button>
+
+              <div className={styles.guestDivider}>
+                <span>
+                  {t('login.guest_divider', {
+                    defaultValue: '或使用访客账号'
+                  })}
+                </span>
+              </div>
+
+              <Input
+                label={t('login.guest_username_label', { defaultValue: '访客账号' })}
+                placeholder="wbuai"
+                value={guestUsername}
+                onChange={(e) => setGuestUsername(e.target.value)}
+                onKeyDown={handleGuestSubmitKeyDown}
+              />
+
+              <Input
+                label={t('login.guest_password_label', { defaultValue: '访客密码' })}
+                placeholder="wbuai"
+                type="password"
+                value={guestPassword}
+                onChange={(e) => setGuestPassword(e.target.value)}
+                onKeyDown={handleGuestSubmitKeyDown}
+              />
+
+              <Button fullWidth variant="secondary" onClick={handleGuestSubmit} disabled={loading}>
+                {t('login.guest_login_button', {
+                  defaultValue: '访客登录（只读）'
+                })}
+              </Button>
+
+              <div className={styles.guestHint}>
+                {t('login.guest_hint', {
+                  defaultValue: '访客账号：wbuai / wbuai；仅可查看仪表盘、配额管理、使用统计。'
+                })}
+              </div>
 
               {error && <div className={styles.errorBox}>{error}</div>}
             </div>

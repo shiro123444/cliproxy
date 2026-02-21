@@ -21,12 +21,13 @@ import styles from './QuotaPage.module.scss';
 export function QuotaPage() {
   const { t } = useTranslation();
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
+  const isGuest = useAuthStore((state) => state.accessMode === 'guest');
 
   const [files, setFiles] = useState<AuthFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const disableControls = connectionStatus !== 'connected';
+  const disableControls = connectionStatus !== 'connected' || isGuest;
 
   const loadConfig = useCallback(async () => {
     try {

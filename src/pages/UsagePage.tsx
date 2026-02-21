@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
-import { useThemeStore } from '@/stores';
+import { useThemeStore, useAuthStore } from '@/stores';
 import {
   StatCards,
   UsageChart,
@@ -46,6 +46,7 @@ export function UsagePage() {
   const { t } = useTranslation();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
+  const isGuest = useAuthStore((state) => state.accessMode === 'guest');
   const isDark = resolvedTheme === 'dark';
 
   // Data hook
@@ -111,24 +112,28 @@ export function UsagePage() {
       <div className={styles.header}>
         <h1 className={styles.pageTitle}>{t('usage_stats.title')}</h1>
         <div className={styles.headerActions}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleExport}
-            loading={exporting}
-            disabled={loading || importing}
-          >
-            {t('usage_stats.export')}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleImport}
-            loading={importing}
-            disabled={loading || exporting}
-          >
-            {t('usage_stats.import')}
-          </Button>
+          {!isGuest && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              loading={exporting}
+              disabled={loading || importing}
+            >
+              {t('usage_stats.export')}
+            </Button>
+          )}
+          {!isGuest && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleImport}
+              loading={importing}
+              disabled={loading || exporting}
+            >
+              {t('usage_stats.import')}
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -137,13 +142,15 @@ export function UsagePage() {
           >
             {loading ? t('common.loading') : t('usage_stats.refresh')}
           </Button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={handleImportChange}
-          />
+          {!isGuest && (
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,application/json"
+              style={{ display: 'none' }}
+              onChange={handleImportChange}
+            />
+          )}
         </div>
       </div>
 
@@ -168,6 +175,7 @@ export function UsagePage() {
         chartLines={chartLines}
         modelNames={modelNames}
         maxLines={MAX_CHART_LINES}
+        readOnly={isGuest}
         onChange={setChartLines}
       />
 
@@ -205,6 +213,7 @@ export function UsagePage() {
       <PriceSettingsCard
         modelNames={modelNames}
         modelPrices={modelPrices}
+        readOnly={isGuest}
         onPricesChange={setModelPrices}
       />
     </div>
